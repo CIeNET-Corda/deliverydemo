@@ -1,4 +1,4 @@
-package java_bootcamp;
+package com.cienet.deliverydemo.token;
 
 import co.paralleluniverse.fibers.Suspendable;
 import com.google.common.collect.ImmutableList;

@@ -1,4 +1,4 @@
-package java_bootcamp;
+package com.cienet.deliverydemo.token;
 
 import net.corda.core.contracts.Contract;
 import net.corda.core.identity.CordaX500Name;
