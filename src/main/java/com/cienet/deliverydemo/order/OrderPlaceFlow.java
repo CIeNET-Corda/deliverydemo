@@ -136,17 +136,20 @@ public class OrderPlaceFlow {
 
             progressTracker.setCurrentStep(SIGNING_TRANSACTION);
             // Sign the transaction.
-            List<PublicKey> pubKeys = ImmutableList.of(me.getOwningKey(), seller.getOwningKey());
-            SignedTransaction partSignedTx =
-                    getServiceHub().signInitialTransaction(transactionBuilder, pubKeys);
+//            List<PublicKey> pubKeys = ImmutableList.of(me.getOwningKey(), seller.getOwningKey());
+//            SignedTransaction partSignedTx =
+//                    getServiceHub().signInitialTransaction(transactionBuilder, pubKeys);
+            SignedTransaction partSignedTx = getServiceHub().signInitialTransaction(transactionBuilder);
 
             progressTracker.setCurrentStep(GATHERING_SIGS);
             // Send the state to the counterparty, and receive it back with their signature.
+            
             FlowSession otherPartySession = initiateFlow(seller);
             final SignedTransaction fullySignedTx = subFlow(
                     new CollectSignaturesFlow(
                             partSignedTx,
                             ImmutableSet.of(otherPartySession),
+                            ImmutableList.of(me.getOwningKey()),
                             CollectSignaturesFlow.Companion.tracker()));
 
             progressTracker.setCurrentStep(FINALISING_TRANSACTION);
