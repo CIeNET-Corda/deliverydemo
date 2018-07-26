@@ -6,6 +6,7 @@ import net.corda.core.transactions.LedgerTransaction;
 
 import java.security.PublicKey;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
@@ -51,7 +52,9 @@ public class TokenContract implements Contract {
         });
 
         payCommand.stream().forEach(commandWithData -> {
+            //input
             if (tx.getInputs().size() != 1) {
+                //TODO Do not consider TokenState unite for now.
                 throw new IllegalArgumentException("must only 1 input.");
             }
 
@@ -61,13 +64,10 @@ public class TokenContract implements Contract {
             }
             TokenState inputTokenState = (TokenState) inputState;
 
-            if (tx.getOutputs().size() == 1) {
-                ContractState outputState = tx.getOutput(0);
-                if (!(outputState instanceof TokenState)) {
-                    throw new IllegalArgumentException("OutputState must TokenState.");
-                }
-
-                TokenState outputTokenState = (TokenState) outputState;
+            //output
+            List<TokenState> outputTokenStateList = tx.outputsOfType(TokenState.class);
+            if (outputTokenStateList.size() == 1) {
+                TokenState outputTokenState = (TokenState) outputTokenStateList.get(0);
                 if (outputTokenState.getAmount() <= 0) {
                     throw new IllegalArgumentException("amount of outputTokenState must positive.");
                 }
@@ -79,31 +79,28 @@ public class TokenContract implements Contract {
                 if (outputTokenState.getOwner() == inputTokenState.getOwner()) {
                     throw new IllegalArgumentException("Owner of In/out put TokenState must be not equal.");
                 }
-            } else if (tx.getOutputs().size() == 2) {
-                TokenState outputState_0 = (TokenState) tx.getOutput(0);
-                TokenState outputState_1 = (TokenState) tx.getOutput(1);
+            } else if (outputTokenStateList.size() == 2) {
+                TokenState outputState_0 = (TokenState) outputTokenStateList.get(0);
+                TokenState outputState_1 = (TokenState) outputTokenStateList.get(1);
 
                 if (inputTokenState.getAmount() != (outputState_0.getAmount() + outputState_1.getAmount())) {
                     throw new IllegalArgumentException("amount of In/out put TokenState must be equal.");
                 }
 
                 if (outputState_0.getOwner() == outputState_1.getOwner()) {
-                } else {
                     throw new IllegalArgumentException("Owners of outputs of TokenState must be not equal.");
                 }
 
-                if (outputState_0.getOwner() == inputTokenState.getOwner()
-                        || outputState_1.getOwner() == inputTokenState.getOwner()) {
-                } else {
-                    throw new IllegalArgumentException("One of Owner of outputs of TokenState must be equal with the input.");
-                }
+//                if (outputState_0.getOwner() != inputTokenState.getOwner()
+//                 && outputState_1.getOwner() != inputTokenState.getOwner()) {
+//                    throw new IllegalArgumentException("One of Owner of outputs of TokenState must be equal with the input.");
+//                }
 
             } else {
-                throw new IllegalArgumentException("must 1 or 2 output.");
+                throw new IllegalArgumentException("must 1 or 2 Token output.");
             }
 
-            List<TokenState> outputStateList = tx.outputsOfType(TokenState.class);
-            outputStateList.stream().forEach(outputState -> {
+            outputTokenStateList.stream().forEach(outputState -> {
                 List<PublicKey> requiredSigners = commandWithData.getSigners();
                 PublicKey issuerKey = outputState.getIssuer().getOwningKey();
                 if (!requiredSigners.contains(issuerKey)) {

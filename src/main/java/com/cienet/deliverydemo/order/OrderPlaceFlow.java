@@ -3,6 +3,7 @@ package com.cienet.deliverydemo.order;
 import co.paralleluniverse.fibers.Suspendable;
 import com.cienet.deliverydemo.token.TokenContract;
 import com.cienet.deliverydemo.token.TokenState;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import net.corda.core.contracts.*;
 import net.corda.core.flows.*;
@@ -13,10 +14,12 @@ import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
 
+import java.security.PublicKey;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.google.common.collect.ImmutableList.of;
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
 /* Our flow, automating the process of updating the ledger.
@@ -24,8 +27,7 @@ import static net.corda.core.contracts.ContractsDSL.requireThat;
 public class OrderPlaceFlow {
     @InitiatingFlow
     @StartableByRPC
-    public static class OrderPlaceRequestFlow extends FlowLogic<SignedTransaction> {
-        private final Party buyer;
+    public static class Request extends FlowLogic<SignedTransaction> {
         private final Party seller;
         private final float sellingPrice;
         private final float downPayments;
@@ -56,12 +58,19 @@ public class OrderPlaceFlow {
                 FINALISING_TRANSACTION
         );
 
-        public OrderPlaceRequestFlow(Party buyer, Party seller, float sellingPrice, float downPayments) {
-            this.buyer = buyer;
+        public Request(Party seller, float sellingPrice, float downPayments) {
             this.seller = seller;
             this.sellingPrice = sellingPrice;
             this.downPayments = downPayments;
         }
+
+//        public OrderPlaceRequestFlow(int dummy) {
+//            this.buyer = getOurIdentity();//new Party(new CordaX500Name("PartyB", "New York", "US"));
+//            this.seller = getServiceHub().getNetworkMapCache().getPeerByLegalName(
+//                    new CordaX500Name("PartyC","Lagos", "NG"));
+//            this.sellingPrice = 12.3f;
+//            this.downPayments = 0.1f;
+//        }
 
         @Override
         public ProgressTracker getProgressTracker() {
@@ -72,6 +81,7 @@ public class OrderPlaceFlow {
         @Override
         public SignedTransaction call() throws FlowException {
             Party notary = getServiceHub().getNetworkMapCache().getNotaryIdentities().get(0);
+            Party me = getServiceHub().getMyInfo().getLegalIdentities().get(0);
 
             int deposit = (int) (sellingPrice * downPayments);
 
@@ -82,11 +92,11 @@ public class OrderPlaceFlow {
             List<StateAndRef<TokenState>> tokenStates = results.getStates();
             StateAndRef<TokenState> tokenStateRef = tokenStates.stream()
                     .filter(state -> state.getState().getData().getAmount() >= deposit
-                            && state.getState().getData().getOwner().equals(buyer))
+                            && state.getState().getData().getOwner().equals(me))
                     .findAny()
                     .orElse(null);
             if (tokenStateRef == null) {
-                // Do not consider TokenState unite for now.
+                //TODO Do not consider TokenState unite for now.
                 throw new FlowException("The buyer has no enough amount.");
             }
 
@@ -98,7 +108,7 @@ public class OrderPlaceFlow {
             //output state
             OrderState orderState = new OrderState(
                     "this is an order",
-                    buyer, seller,
+                    me, seller,
                     new UniqueIdentifier("ID_test", UUID.randomUUID()),
                     sellingPrice, downPayments);
 
@@ -110,7 +120,7 @@ public class OrderPlaceFlow {
             if (tokenState.getAmount() > deposit) {
                 //Add for a change
                 TokenState tokenState4Buyer =
-                        new TokenState(tokenState.getIssuer(), buyer, tokenState.getAmount() - deposit);
+                        new TokenState(tokenState.getIssuer(), me, tokenState.getAmount() - deposit);
                 transactionBuilder.addOutputState(tokenState4Buyer, TokenContract.ID, notary);
             }
 
@@ -119,18 +129,20 @@ public class OrderPlaceFlow {
             CommandData orderCommandData = new OrderContract.Commands.OrderPlacingCommand();
 
             transactionBuilder.addCommand(tokenCommandData, tokenState.getIssuer().getOwningKey());
-            transactionBuilder.addCommand(orderCommandData, buyer.getOwningKey(), seller.getOwningKey());
+            transactionBuilder.addCommand(orderCommandData, me.getOwningKey(), seller.getOwningKey());
 
             progressTracker.setCurrentStep(VERIFYING_TRANSACTION);
             transactionBuilder.verify(getServiceHub());
 
             progressTracker.setCurrentStep(SIGNING_TRANSACTION);
             // Sign the transaction.
-            final SignedTransaction partSignedTx = getServiceHub().signInitialTransaction(transactionBuilder);
+            List<PublicKey> pubKeys = ImmutableList.of(me.getOwningKey(), seller.getOwningKey());
+            SignedTransaction partSignedTx =
+                    getServiceHub().signInitialTransaction(transactionBuilder, pubKeys);
 
             progressTracker.setCurrentStep(GATHERING_SIGS);
             // Send the state to the counterparty, and receive it back with their signature.
-            FlowSession otherPartySession = initiateFlow(buyer);
+            FlowSession otherPartySession = initiateFlow(seller);
             final SignedTransaction fullySignedTx = subFlow(
                     new CollectSignaturesFlow(
                             partSignedTx,
@@ -143,12 +155,12 @@ public class OrderPlaceFlow {
         }
     }
 
-    @InitiatedBy(OrderPlaceRequestFlow.class)
-    public static class OrderPlaceConfirmFlow extends FlowLogic<SignedTransaction> {
+    @InitiatedBy(Request.class)
+    public static class Confirm extends FlowLogic<SignedTransaction> {
 
         private final FlowSession otherPartyFlow;
 
-        public OrderPlaceConfirmFlow(FlowSession otherPartyFlow) {
+        public Confirm(FlowSession otherPartyFlow) {
             this.otherPartyFlow = otherPartyFlow;
         }
 
@@ -162,18 +174,18 @@ public class OrderPlaceFlow {
 
                 @Override
                 protected void checkTransaction(SignedTransaction stx) {
-                    requireThat(require -> {
-                        final List<StateRef> inputStateList = stx.getTx().getInputs();
-                        //TODO only has hash key and ID, how to check amount in TokenState?
-                        final List<TransactionState<ContractState>> outputTxStateList = stx.getTx().getOutputs();
-                        List<TransactionState<ContractState>> outputOrderStateList =
-                                outputTxStateList.stream()
-                                        .filter(state -> state.getData() instanceof OrderState)
-                                        .collect(Collectors.toList());
-                        require.using("Must have a output OrderState",outputOrderStateList.size() != 1);
-                        //TODO add more check
-                        return null;
-                    });
+//                    requireThat(require -> {
+//                        //final List<StateRef> inputStateList = stx.getTx().getInputs();
+//                        //TODO only has hash key and ID, how to check amount in TokenState?
+//                        final List<TransactionState<ContractState>> outputTxStateList = stx.getTx().getOutputs();
+//                        List<TransactionState<ContractState>> outputOrderStateList =
+//                                outputTxStateList.stream()
+//                                        .filter(state -> state.getData() instanceof OrderState)
+//                                        .collect(Collectors.toList());
+//                        require.using("Must have a output OrderState",outputOrderStateList.size() == 1);
+//                        //TODO add more check
+//                        return null;
+//                    });
                 }
             }
 
