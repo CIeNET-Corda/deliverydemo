@@ -31,6 +31,20 @@ $ ./build/nodes/runnodes
  PartyB CLI
  >>> flow start OrderPlaceFlow$Request seller: PartyC, sellingPrice: 12.9, downPayments: 0.1
  ```
+ * Check Token state
+ ```
+ PartyA, amount should be 1 and 98
+ PartyB, amount should became to 98 from 99
+ PartyC, amount should be 1 
+ >>> run vaultQuery contractStateType: com.cienet.deliverydemo.token.TokenState
+ ```
+
+ * Check Order state
+ ```text
+ PartyB and PartyC CLI
+ >>> run vaultQuery contractStateType: com.cienet.deliverydemo.order.OrderState
+ ```
+ 
  * Seller deliveres the goods to Buyer, and Buyer will check the delivere status with Oracle[TBD],
   3.1. If has been signed, Buyer will pay some cash to Seller,
   3.2. If not, ...[TBD]

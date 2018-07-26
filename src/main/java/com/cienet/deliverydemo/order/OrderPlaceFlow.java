@@ -4,7 +4,6 @@ import co.paralleluniverse.fibers.Suspendable;
 import com.cienet.deliverydemo.token.TokenContract;
 import com.cienet.deliverydemo.token.TokenState;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import net.corda.core.contracts.*;
 import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
@@ -14,12 +13,10 @@ import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
 
-import java.security.PublicKey;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static com.google.common.collect.ImmutableList.of;
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
 /* Our flow, automating the process of updating the ledger.
@@ -63,14 +60,6 @@ public class OrderPlaceFlow {
             this.sellingPrice = sellingPrice;
             this.downPayments = downPayments;
         }
-
-//        public OrderPlaceRequestFlow(int dummy) {
-//            this.buyer = getOurIdentity();//new Party(new CordaX500Name("PartyB", "New York", "US"));
-//            this.seller = getServiceHub().getNetworkMapCache().getPeerByLegalName(
-//                    new CordaX500Name("PartyC","Lagos", "NG"));
-//            this.sellingPrice = 12.3f;
-//            this.downPayments = 0.1f;
-//        }
 
         @Override
         public ProgressTracker getProgressTracker() {
@@ -128,7 +117,11 @@ public class OrderPlaceFlow {
             CommandData tokenCommandData = new TokenContract.Pay();
             CommandData orderCommandData = new OrderContract.Commands.OrderPlacingCommand();
 
-            transactionBuilder.addCommand(tokenCommandData, tokenState.getIssuer().getOwningKey());
+            transactionBuilder.addCommand(
+                    tokenCommandData,
+                    tokenState.getIssuer().getOwningKey(),
+                    me.getOwningKey(),
+                    seller.getOwningKey());
             transactionBuilder.addCommand(orderCommandData, me.getOwningKey(), seller.getOwningKey());
 
             progressTracker.setCurrentStep(VERIFYING_TRANSACTION);
@@ -136,20 +129,18 @@ public class OrderPlaceFlow {
 
             progressTracker.setCurrentStep(SIGNING_TRANSACTION);
             // Sign the transaction.
-//            List<PublicKey> pubKeys = ImmutableList.of(me.getOwningKey(), seller.getOwningKey());
-//            SignedTransaction partSignedTx =
-//                    getServiceHub().signInitialTransaction(transactionBuilder, pubKeys);
             SignedTransaction partSignedTx = getServiceHub().signInitialTransaction(transactionBuilder);
 
             progressTracker.setCurrentStep(GATHERING_SIGS);
             // Send the state to the counterparty, and receive it back with their signature.
-            
-            FlowSession otherPartySession = initiateFlow(seller);
+
+            List<FlowSession> otherPartySession =
+                    //Create FlowSession for Seller and Token Issuer
+                    ImmutableList.of(initiateFlow(seller), initiateFlow(tokenState.getIssuer()));
             final SignedTransaction fullySignedTx = subFlow(
                     new CollectSignaturesFlow(
                             partSignedTx,
-                            ImmutableSet.of(otherPartySession),
-                            ImmutableList.of(me.getOwningKey()),
+                            otherPartySession,
                             CollectSignaturesFlow.Companion.tracker()));
 
             progressTracker.setCurrentStep(FINALISING_TRANSACTION);
@@ -177,18 +168,18 @@ public class OrderPlaceFlow {
 
                 @Override
                 protected void checkTransaction(SignedTransaction stx) {
-//                    requireThat(require -> {
-//                        //final List<StateRef> inputStateList = stx.getTx().getInputs();
-//                        //TODO only has hash key and ID, how to check amount in TokenState?
-//                        final List<TransactionState<ContractState>> outputTxStateList = stx.getTx().getOutputs();
-//                        List<TransactionState<ContractState>> outputOrderStateList =
-//                                outputTxStateList.stream()
-//                                        .filter(state -> state.getData() instanceof OrderState)
-//                                        .collect(Collectors.toList());
-//                        require.using("Must have a output OrderState",outputOrderStateList.size() == 1);
-//                        //TODO add more check
-//                        return null;
-//                    });
+                    requireThat(require -> {
+                        //final List<StateRef> inputStateList = stx.getTx().getInputs();
+                        //TODO only has hash key and ID, how to check amount in TokenState?
+                        final List<TransactionState<ContractState>> outputTxStateList = stx.getTx().getOutputs();
+                        List<TransactionState<ContractState>> outputOrderStateList =
+                                outputTxStateList.stream()
+                                        .filter(state -> state.getData() instanceof OrderState)
+                                        .collect(Collectors.toList());
+                        require.using("Must have a output OrderState",outputOrderStateList.size() == 1);
+                        //TODO add more check
+                        return null;
+                    });
                 }
             }
 
