@@ -19,17 +19,22 @@ import java.util.stream.Collectors;
 
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
-/* Our flow, automating the process of updating the ledger.
- * See src/main/java/examples/IAmAFlowPair.java for an example. */
-public class OrderPlaceFlow {
+public class OrderDeliveredFlow {
+    public static class TokenRequest {
+        public int amount;
+        public Party buyer;
+        public TokenRequest(int amount, Party buyer) {
+            this.amount = amount;
+            this.buyer = buyer;
+        }
+    }
+
     @InitiatingFlow
     @StartableByRPC
     public static class Request extends FlowLogic<SignedTransaction> {
-        private final Party seller;
         private final String orderID;
-        private final float sellingPrice;
-        private final float downPayments;
 
+        private final ProgressTracker.Step GRABBING_ORDER = new ProgressTracker.Step("Grabbing the order by the id.");
         private final ProgressTracker.Step CHECKING_TOKEN_AMOUNT = new ProgressTracker.Step("Checking Buyer's token amount for this order.");
         private final ProgressTracker.Step GENERATING_TRANSACTION = new ProgressTracker.Step("Generating transaction.");
         private final ProgressTracker.Step VERIFYING_TRANSACTION = new ProgressTracker.Step("Verifying contract constraints.");
@@ -48,6 +53,7 @@ public class OrderPlaceFlow {
         };
 
         private final ProgressTracker progressTracker = new ProgressTracker(
+                GRABBING_ORDER,
                 CHECKING_TOKEN_AMOUNT,
                 GENERATING_TRANSACTION,
                 VERIFYING_TRANSACTION,
@@ -56,11 +62,8 @@ public class OrderPlaceFlow {
                 FINALISING_TRANSACTION
         );
 
-        public Request(Party seller,String orderID, float sellingPrice, float downPayments) {
-            this.seller = seller;
+        public Request(String orderID) {
             this.orderID = orderID;
-            this.sellingPrice = sellingPrice;
-            this.downPayments = downPayments;
         }
 
         @Override
@@ -74,44 +77,51 @@ public class OrderPlaceFlow {
             Party notary = getServiceHub().getNetworkMapCache().getNotaryIdentities().get(0);
             Party me = getServiceHub().getMyInfo().getLegalIdentities().get(0);
 
-            int deposit = (int) (sellingPrice * downPayments);
-
-            progressTracker.setCurrentStep(CHECKING_TOKEN_AMOUNT);
+            progressTracker.setCurrentStep(GRABBING_ORDER);
             //find a Token State for order
             QueryCriteria.VaultQueryCriteria criteria = new QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED);
-            Vault.Page<TokenState> results = getServiceHub().getVaultService().queryBy(TokenState.class, criteria);
-            List<StateAndRef<TokenState>> tokenStates = results.getStates();
-            StateAndRef<TokenState> tokenStateRef = tokenStates.stream()
-                    .filter(state -> state.getState().getData().getAmount() >= deposit
-                            && state.getState().getData().getOwner().equals(me))
+            Vault.Page<OrderState> results = getServiceHub().getVaultService().queryBy(OrderState.class, criteria);
+            List<StateAndRef<OrderState>> orderStates = results.getStates();
+            StateAndRef<OrderState> orderStateRef = orderStates.stream()
+                    .filter(state -> state.getState().getData().getLinearId().getExternalId() == orderID
+                            && state.getState().getData().getSeller().equals(me))
                     .findAny()
                     .orElse(null);
-            if (tokenStateRef == null) {
+            if (orderStateRef == null) {
                 //TODO Do not consider TokenState unite for now.
                 throw new FlowException("The buyer has no enough amount.");
             }
+            //TODO, Ignore the duplicate
+            OrderState inputOrderState = orderStateRef.getState().getData();
+            int balancePayment =
+                    //TODO float to int, here is a bug, and I will fix this later.
+                    (int)(inputOrderState.getSellingPrice()
+                            - inputOrderState.getSellingPrice()*inputOrderState.getDownPayments());
+            Party buyer = inputOrderState.getBuyer();
+
+            progressTracker.setCurrentStep(CHECKING_TOKEN_AMOUNT);
+            //ask the buyer for the token
+            FlowSession buyerPartySession = initiateFlow(buyer);
+            StateAndRef<TokenState> tokenStateRef =
+                    buyerPartySession.sendAndReceive(
+                            StateAndRef.class,
+                            new TokenRequest(balancePayment, buyer)
+                    ).unwrap(data -> data);
 
             progressTracker.setCurrentStep(GENERATING_TRANSACTION);
             TransactionBuilder transactionBuilder = new TransactionBuilder(notary);
             //input state
+            transactionBuilder.addInputState(orderStateRef);
             transactionBuilder.addInputState(tokenStateRef);
 
             //output state
-            OrderState orderState = new OrderState(
-                    "This is an demo order.",
-                    me, seller,
-                    new UniqueIdentifier(this.orderID, UUID.randomUUID()),
-                    sellingPrice, downPayments);
-
-            transactionBuilder.addOutputState(orderState, TokenContract.ID, notary);
-
             TokenState tokenState = tokenStateRef.getState().getData();
-            TokenState tokenState4Seller = new TokenState(tokenState.getIssuer(), seller, deposit);
+            TokenState tokenState4Seller = new TokenState(tokenState.getIssuer(), me, balancePayment);
             transactionBuilder.addOutputState(tokenState4Seller, TokenContract.ID, notary);
-            if (tokenState.getAmount() > deposit) {
+            if (tokenState.getAmount() > balancePayment) {
                 //Add for a change
                 TokenState tokenState4Buyer =
-                        new TokenState(tokenState.getIssuer(), me, tokenState.getAmount() - deposit);
+                        new TokenState(tokenState.getIssuer(), me, tokenState.getAmount() - balancePayment);
                 transactionBuilder.addOutputState(tokenState4Buyer, TokenContract.ID, notary);
             }
 
@@ -123,8 +133,8 @@ public class OrderPlaceFlow {
                     tokenCommandData,
                     tokenState.getIssuer().getOwningKey(),
                     me.getOwningKey(),
-                    seller.getOwningKey());
-            transactionBuilder.addCommand(orderCommandData, me.getOwningKey(), seller.getOwningKey());
+                    buyer.getOwningKey());
+            transactionBuilder.addCommand(orderCommandData, me.getOwningKey(), buyer.getOwningKey());
 
             progressTracker.setCurrentStep(VERIFYING_TRANSACTION);
             transactionBuilder.verify(getServiceHub());
@@ -138,7 +148,7 @@ public class OrderPlaceFlow {
 
             List<FlowSession> otherPartySession =
                     //Create FlowSession for Seller and Token Issuer
-                    ImmutableList.of(initiateFlow(seller), initiateFlow(tokenState.getIssuer()));
+                    ImmutableList.of(initiateFlow(buyer), initiateFlow(tokenState.getIssuer()));
             final SignedTransaction fullySignedTx = subFlow(
                     new CollectSignaturesFlow(
                             partSignedTx,
@@ -159,6 +169,16 @@ public class OrderPlaceFlow {
         public Confirm(FlowSession otherPartyFlow) {
             this.otherPartyFlow = otherPartyFlow;
         }
+
+        private static final ProgressTracker.Step RECEIVING_AND_SENDING_DATA = new ProgressTracker.Step("Sending data between parties.");
+        private static final ProgressTracker.Step SIGNING = new ProgressTracker.Step("Responding to CollectSignaturesFlow.");
+        private static final ProgressTracker.Step FINALISATION = new ProgressTracker.Step("Finalising a transaction.");
+
+        private final ProgressTracker progressTracker = new ProgressTracker(
+                RECEIVING_AND_SENDING_DATA,
+                SIGNING,
+                FINALISATION
+        );
 
         @Suspendable
         @Override
@@ -185,7 +205,29 @@ public class OrderPlaceFlow {
                 }
             }
 
-            return subFlow(new SignTxFlow(otherPartyFlow, SignTransactionFlow.Companion.tracker()));
+            progressTracker.setCurrentStep(RECEIVING_AND_SENDING_DATA);
+            TokenRequest tokenReq = otherPartyFlow.receive(TokenRequest.class).unwrap(data -> data);
+            //find a Token State for order
+            QueryCriteria.VaultQueryCriteria criteria = new QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED);
+            Vault.Page<TokenState> results = getServiceHub().getVaultService().queryBy(TokenState.class, criteria);
+            List<StateAndRef<TokenState>> tokenStates = results.getStates();
+            StateAndRef<TokenState> tokenStateRef = tokenStates.stream()
+                    .filter(state -> state.getState().getData().getAmount() >= tokenReq.amount
+                            && state.getState().getData().getOwner().equals(tokenReq.buyer))
+                    .findAny()
+                    .orElse(null);
+            if (tokenStateRef == null) {
+                //TODO Do not consider TokenState unite for now.
+                throw new FlowException("The buyer has no enough amount.");
+            }
+            otherPartyFlow.send(tokenStateRef);
+
+            progressTracker.setCurrentStep(SIGNING);
+            subFlow(new SignTxFlow(otherPartyFlow, SignTransactionFlow.Companion.tracker()));
+
+
+            progressTracker.setCurrentStep(FINALISATION);
+            return null;
         }
     }
 

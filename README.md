@@ -12,7 +12,7 @@ A demo for issuing cash to Buyer from Bank, and exchange some goods with Seller
 ```bash
 $ cd deliverydemo
 $ ./gradlew clean
-$ ./gradlew deployNodesJava -Poffline=trueexit
+$ ./gradlew deployNodesJava -Poffline=true
 ```
 
 # Services starting up
@@ -29,7 +29,7 @@ $ ./build/nodes/runnodes
  * Buyer places an order with sb Seller,
  ```text
  PartyB CLI
- >>> flow start OrderPlaceFlow$Request seller: PartyC, sellingPrice: 12.9, downPayments: 0.1
+ >>> flow start OrderPlaceFlow$Request seller: PartyC, orderID: testOrder, sellingPrice: 12.9, downPayments: 0.1
  ```
  * Check Token state
  ```
@@ -47,6 +47,10 @@ $ ./build/nodes/runnodes
  
  * Seller deliveres the goods to Buyer, and Buyer will check the delivere status with Oracle[TBD],
   3.1. If has been signed, Buyer will pay some cash to Seller,
+  ```text
+  PartyC CLI
+  >>> flow start OrderDeliveredFlow$Request orderID: testOrder
+  ```
   3.2. If not, ...[TBD]
  * Seller got some cash.
 
