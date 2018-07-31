@@ -9,24 +9,36 @@ import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
 import net.corda.core.node.services.Vault;
 import net.corda.core.node.services.vault.QueryCriteria;
+import net.corda.core.serialization.CordaSerializable;
 import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
 
+import java.lang.annotation.Annotation;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
 public class OrderDeliveredFlow {
+
+    @CordaSerializable
     public static class TokenRequest {
         public int amount;
         public Party buyer;
+
         public TokenRequest(int amount, Party buyer) {
             this.amount = amount;
             this.buyer = buyer;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this);
+        }
+
     }
 
     @InitiatingFlow
@@ -89,7 +101,7 @@ public class OrderDeliveredFlow {
                     .orElse(null);
             if (orderStateRef == null) {
                 //TODO Do not consider TokenState unite for now.
-                throw new FlowException("The buyer has no enough amount.");
+                throw new FlowException("No Such Order, ID:" + this.orderID);
             }
             //TODO, Ignore the duplicate
             OrderState inputOrderState = orderStateRef.getState().getData();
