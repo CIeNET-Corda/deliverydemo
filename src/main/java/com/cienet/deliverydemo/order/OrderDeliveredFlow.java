@@ -5,6 +5,7 @@ import com.cienet.deliverydemo.token.TokenContract;
 import com.cienet.deliverydemo.token.TokenState;
 import com.google.common.collect.ImmutableList;
 import net.corda.core.contracts.*;
+import net.corda.core.crypto.SecureHash;
 import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
 import net.corda.core.node.services.Vault;
@@ -13,11 +14,10 @@ import net.corda.core.serialization.CordaSerializable;
 import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
+import net.corda.core.utilities.UntrustworthyData;
 
-import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static net.corda.core.contracts.ContractsDSL.requireThat;
@@ -111,14 +111,29 @@ public class OrderDeliveredFlow {
                             - inputOrderState.getSellingPrice()*inputOrderState.getDownPayments());
             Party buyer = inputOrderState.getBuyer();
 
+
+//            ////for get class
+//            TransactionState<TokenState> tempTS = new TransactionState<TokenState>(
+//                    new TokenState(me, me, 0), TokenContract.ID, me);
+//            StateAndRef<TokenState> temp_1 = new StateAndRef<>(
+//                    tempTS, new StateRef(orderStateRef.getRef().getTxhash(), 0));
+//
+//            ////
+
             progressTracker.setCurrentStep(CHECKING_TOKEN_AMOUNT);
             //ask the buyer for the token
             FlowSession buyerPartySession = initiateFlow(buyer);
-            StateAndRef<TokenState> tokenStateRef =
-                    buyerPartySession.sendAndReceive(
-                            StateAndRef.class,
-                            new TokenRequest(balancePayment, buyer)
-                    ).unwrap(data -> data);
+            UntrustworthyData<StateAndRef> tokenStateRefUn = buyerPartySession.sendAndReceive(
+                    StateAndRef.class,
+                    new TokenRequest(balancePayment, buyer)
+            );
+            // TODO we still got "missing parameter name at index 0 {}" error.
+            // If comment out the "unwrap" line, this error will disappear.
+            StateAndRef<TokenState> tokenStateRef = tokenStateRefUn.unwrap(data -> data);
+            //StateAndRef<TokenState> tokenStateRef = new StateAndRef<>(null, null);
+            if (tokenStateRef == null) {
+                throw new FlowException("Cannot get any token state from buyer.");
+            }
 
             progressTracker.setCurrentStep(GENERATING_TRANSACTION);
             TransactionBuilder transactionBuilder = new TransactionBuilder(notary);
