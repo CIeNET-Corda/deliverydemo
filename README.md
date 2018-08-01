@@ -54,3 +54,9 @@ $ ./build/nodes/runnodes
   3.2. If not, ...[TBD]
  * Seller got some cash.
 
+# Kotlin IOU test
+
+```text
+PartyA CLI
+>>> flow start IOUFlow$Initiator iouValue: 50, otherParty: "O=PartyB,L=New York,C=US"
+```
