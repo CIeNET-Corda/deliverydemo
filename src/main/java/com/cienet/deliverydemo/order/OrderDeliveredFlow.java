@@ -95,7 +95,7 @@ public class OrderDeliveredFlow {
             Vault.Page<OrderState> results = getServiceHub().getVaultService().queryBy(OrderState.class, criteria);
             List<StateAndRef<OrderState>> orderStates = results.getStates();
             StateAndRef<OrderState> orderStateRef = orderStates.stream()
-                    .filter(state -> state.getState().getData().getLinearId().getExternalId() == orderID
+                    .filter(state -> state.getState().getData().getLinearId().getExternalId().equals(orderID)
                             && state.getState().getData().getSeller().equals(me))
                     .findAny()
                     .orElse(null);
