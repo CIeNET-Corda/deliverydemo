@@ -6,14 +6,20 @@ import com.cienet.deliverydemo.kttest.IOUContract.Companion.IOU_CONTRACT_ID
 import com.cienet.deliverydemo.kttest.IOUFlow.Acceptor
 import com.cienet.deliverydemo.kttest.IOUFlow.Initiator
 import com.cienet.deliverydemo.kttest.IOUState
+import com.cienet.deliverydemo.order.OrderState
+import com.cienet.deliverydemo.token.TokenState
 import net.corda.core.contracts.Command
+import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
+import net.corda.core.node.services.Vault
+import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.ProgressTracker.Step
+import net.corda.core.utilities.unwrap
 
 /**
  * This flow allows two parties (the [Initiator] and the [Acceptor]) to come to an agreement about the IOU encapsulated
@@ -75,6 +81,11 @@ object IOUFlow {
                     .addOutputState(iouState, IOU_CONTRACT_ID)
                     .addCommand(txCommand)
 
+//            val otherPartySession = initiateFlow(otherParty)
+//            otherPartySession.send(1)
+//            val tokenState = otherPartySession.receive<StateAndRef<TokenState>>().unwrap { it }
+//            System.out.println("==== Got tokenState:" + tokenState.state.data.amount)
+
             // Stage 2.
             progressTracker.currentStep = VERIFYING_TRANSACTION
             // Verify that the transaction is valid.
@@ -110,6 +121,14 @@ object IOUFlow {
                     "I won't accept IOUs with a value over 100." using (iou.value <= 100)
                 }
             }
+
+//            System.out.println("Try to receive...")
+//            val receive = otherPartyFlow.receive<Int>()
+//            System.out.println("Got Int $receive ")
+//            val criteria = QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED)
+//            val orderStates = serviceHub.vaultService.queryBy(TokenState::class.java, criteria)
+//            val state = orderStates.states.firstOrNull()?:throw FlowException("No TokenState found.")
+//            otherPartyFlow.send(state)
 
             return subFlow(signTransactionFlow)
         }
