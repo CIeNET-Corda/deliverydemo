@@ -49,6 +49,7 @@ public class FlowTests {
 
     @Test
     public void success() throws Exception {
+        //PartyA issues TokenState to PartyB
 
         TokenState tokenState = new TokenState(
                 nodeA.getInfo().getLegalIdentities().get(0),
@@ -78,14 +79,19 @@ public class FlowTests {
         nodeA.getServices().recordTransactions(signedTransaction);
         nodeB.getServices().recordTransactions(signedTransaction);
 
+        //PartyB places a OrderState with PartyC, includes some change.
+
         //find a Token State for order
         QueryCriteria.VaultQueryCriteria criteria = new QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED);
         Vault.Page<TokenState> results = nodeB.getServices().getVaultService().queryBy(TokenState.class, criteria);
         List<StateAndRef<TokenState>> tokenStates = results.getStates();
-        assertEquals(tokenStates.size(), 0);
+        if (tokenStates.size() == 0) {
+            throw new FlowException("tokenStates.size() is 0");
+        }
+
         StateAndRef<TokenState> inputTokenStateRef = tokenStates.stream()
-                .filter(state -> state.getState().getData().getAmount() >= 1
-                        && state.getState().getData().getOwner().equals(nodeB))
+                .filter(state -> state.getState().getData().getAmount() == 99
+                        && state.getState().getData().getOwner().equals(nodeB.getInfo().getLegalIdentities().get(0)))
                 .findAny()
                 .orElse(null);
         if (inputTokenStateRef == null) {
@@ -116,6 +122,21 @@ public class FlowTests {
         transactionBuilder4Order.addOutputState(
                 outputOrderState, OrderContract.CONTRACT_ID, network.getDefaultNotaryIdentity());
 
+        //command
+        CommandData tokenCommandData = new TokenContract.Pay();
+        CommandData orderCommandData = new OrderContract.Commands.OrderPlacingCommand();
+
+        transactionBuilder4Order.addCommand(
+                tokenCommandData,
+                //tokenState.getIssuer().getOwningKey(),
+                nodeB.getInfo().getLegalIdentities().get(0).getOwningKey(),
+                nodeC.getInfo().getLegalIdentities().get(0).getOwningKey());
+        transactionBuilder4Order.addCommand(
+                orderCommandData,
+                nodeB.getInfo().getLegalIdentities().get(0).getOwningKey(),
+                nodeC.getInfo().getLegalIdentities().get(0).getOwningKey());
+
+
         nodeB.transaction(() -> {
             try {
                 transactionBuilder4Order.verify(nodeB.getServices());
@@ -126,13 +147,15 @@ public class FlowTests {
             return null;
         });
 
-        partSignedTransaction = nodeA.getServices().signInitialTransaction(transactionBuilder4Order);
-        signedTransaction = nodeB.getServices().addSignature(partSignedTransaction);
+        partSignedTransaction = nodeB.getServices().signInitialTransaction(transactionBuilder4Order);
+        signedTransaction = nodeA.getServices().addSignature(partSignedTransaction);
         signedTransaction = nodeC.getServices().addSignature(signedTransaction);
+
         nodeA.getServices().recordTransactions(signedTransaction);
         nodeB.getServices().recordTransactions(signedTransaction);
         nodeC.getServices().recordTransactions(signedTransaction);
 
+        System.out.println("my testing flow below...");
 
 //        TokenIssueFlow tokenIssueFlow = new TokenIssueFlow(
 //                nodeB.getInfo().getLegalIdentities().get(0),
