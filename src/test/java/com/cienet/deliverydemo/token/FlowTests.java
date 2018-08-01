@@ -33,7 +33,7 @@ public class FlowTests {
 
     @Test
     public void transactionConstructedByFlowUsesTheCorrectNotary() throws Exception {
-        TokenIssueFlow flow = new TokenIssueFlow(nodeB.getInfo().getLegalIdentities().get(0), 99);
+        TokenIssueFlow.Request flow = new TokenIssueFlow.Request(nodeB.getInfo().getLegalIdentities().get(0), 99);
         CordaFuture<SignedTransaction> future = nodeA.startFlow(flow);
         network.runNetwork();
         SignedTransaction signedTransaction = future.get();
@@ -46,7 +46,7 @@ public class FlowTests {
 
     @Test
     public void transactionConstructedByFlowHasOneTokenStateOutputWithTheCorrectAmountAndOwner() throws Exception {
-        TokenIssueFlow flow = new TokenIssueFlow(nodeB.getInfo().getLegalIdentities().get(0), 99);
+        TokenIssueFlow.Request flow = new TokenIssueFlow.Request(nodeB.getInfo().getLegalIdentities().get(0), 99);
         CordaFuture<SignedTransaction> future = nodeA.startFlow(flow);
         network.runNetwork();
         SignedTransaction signedTransaction = future.get();
@@ -60,7 +60,7 @@ public class FlowTests {
 
     @Test
     public void transactionConstructedByFlowHasOneOutputUsingTheCorrectContract() throws Exception {
-        TokenIssueFlow flow = new TokenIssueFlow(nodeB.getInfo().getLegalIdentities().get(0), 99);
+        TokenIssueFlow.Request flow = new TokenIssueFlow.Request(nodeB.getInfo().getLegalIdentities().get(0), 99);
         CordaFuture<SignedTransaction> future = nodeA.startFlow(flow);
         network.runNetwork();
         SignedTransaction signedTransaction = future.get();
@@ -73,7 +73,7 @@ public class FlowTests {
 
     @Test
     public void transactionConstructedByFlowHasOneIssueCommand() throws Exception {
-        TokenIssueFlow flow = new TokenIssueFlow(nodeB.getInfo().getLegalIdentities().get(0), 99);
+        TokenIssueFlow.Request flow = new TokenIssueFlow.Request(nodeB.getInfo().getLegalIdentities().get(0), 99);
         CordaFuture<SignedTransaction> future = nodeA.startFlow(flow);
         network.runNetwork();
         SignedTransaction signedTransaction = future.get();
@@ -86,7 +86,7 @@ public class FlowTests {
 
     @Test
     public void transactionConstructedByFlowHasOneCommandWithTheIssueAsASigner() throws Exception {
-        TokenIssueFlow flow = new TokenIssueFlow(nodeB.getInfo().getLegalIdentities().get(0), 99);
+        TokenIssueFlow.Request flow = new TokenIssueFlow.Request(nodeB.getInfo().getLegalIdentities().get(0), 99);
         CordaFuture<SignedTransaction> future = nodeA.startFlow(flow);
         network.runNetwork();
         SignedTransaction signedTransaction = future.get();
@@ -100,7 +100,7 @@ public class FlowTests {
 
     @Test
     public void transactionConstructedByFlowHasNoInputsAttachmentsOrTimeWindows() throws Exception {
-        TokenIssueFlow flow = new TokenIssueFlow(nodeB.getInfo().getLegalIdentities().get(0), 99);
+        TokenIssueFlow.Request flow = new TokenIssueFlow.Request(nodeB.getInfo().getLegalIdentities().get(0), 99);
         CordaFuture<SignedTransaction> future = nodeA.startFlow(flow);
         network.runNetwork();
         SignedTransaction signedTransaction = future.get();
