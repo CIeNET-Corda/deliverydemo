@@ -47,6 +47,46 @@ public class FlowTests {
         network.stopNodes();
     }
 
+//    @Test
+//    public void orderPlaceFlow() throws Exception {
+//        //PartyA issues TokenState to PartyB
+//
+//        TokenState tokenState = new TokenState(
+//                nodeA.getInfo().getLegalIdentities().get(0),
+//                nodeB.getInfo().getLegalIdentities().get(0),
+//                99);
+//        TransactionBuilder transactionBuilder = new TransactionBuilder(network.getDefaultNotaryIdentity());
+//        transactionBuilder.addOutputState(tokenState, TokenContract.ID, network.getDefaultNotaryIdentity());
+//        CommandData commandData = new TokenContract.Issue();
+//        transactionBuilder.addCommand(commandData, nodeA.getInfo().getLegalIdentities().get(0).getOwningKey());
+//
+//        nodeA.transaction(() -> {
+//            try {
+//                transactionBuilder.verify(nodeA.getServices());
+//            } catch (TransactionVerificationException e) {
+//                assertEquals(1, 1);
+//            } catch (TransactionResolutionException e) {
+//                assertEquals(2, 2);
+//            } catch (AttachmentResolutionException e) {
+//                assertEquals(3, 3);
+//            }
+//            return null;
+//        });
+//
+//        SignedTransaction partSignedTransaction = nodeA.getServices().signInitialTransaction(transactionBuilder);
+//        SignedTransaction signedTransaction = nodeB.getServices().addSignature(partSignedTransaction);
+//
+//        nodeA.getServices().recordTransactions(signedTransaction);
+//        nodeB.getServices().recordTransactions(signedTransaction);
+//
+//        OrderPlaceFlow.Request flow =
+//                new OrderPlaceFlow.Request(nodeC.getInfo().getLegalIdentities().get(0),
+//                        "test", 10f, 0.1f);
+//        CordaFuture<SignedTransaction> futureB = nodeB.startFlow(flow);
+//        network.runNetwork();
+//        futureB.get();
+//    }
+
     @Test
     public void success() throws Exception {
         //PartyA issues TokenState to PartyB

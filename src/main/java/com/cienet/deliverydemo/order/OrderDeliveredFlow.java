@@ -5,16 +5,15 @@ import com.cienet.deliverydemo.token.TokenContract;
 import com.cienet.deliverydemo.token.TokenState;
 import com.google.common.collect.ImmutableList;
 import net.corda.core.contracts.*;
-import net.corda.core.crypto.SecureHash;
 import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
+import net.corda.core.internal.FetchDataFlow;
 import net.corda.core.node.services.Vault;
 import net.corda.core.node.services.vault.QueryCriteria;
 import net.corda.core.serialization.CordaSerializable;
 import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
-import net.corda.core.utilities.UntrustworthyData;
 
 import java.util.List;
 import java.util.Objects;
@@ -23,23 +22,6 @@ import java.util.stream.Collectors;
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
 public class OrderDeliveredFlow {
-
-    @CordaSerializable
-    public static class TokenRequest {
-        public int amount;
-        public Party buyer;
-
-        public TokenRequest(int amount, Party buyer) {
-            this.amount = amount;
-            this.buyer = buyer;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(this);
-        }
-
-    }
 
     @InitiatingFlow
     @StartableByRPC
@@ -111,29 +93,22 @@ public class OrderDeliveredFlow {
                             - inputOrderState.getSellingPrice()*inputOrderState.getDownPayments());
             Party buyer = inputOrderState.getBuyer();
 
-
-//            ////for get class
-//            TransactionState<TokenState> tempTS = new TransactionState<TokenState>(
-//                    new TokenState(me, me, 0), TokenContract.ID, me);
-//            StateAndRef<TokenState> temp_1 = new StateAndRef<>(
-//                    tempTS, new StateRef(orderStateRef.getRef().getTxhash(), 0));
-//
-//            ////
-
             progressTracker.setCurrentStep(CHECKING_TOKEN_AMOUNT);
             //ask the buyer for the token
             FlowSession buyerPartySession = initiateFlow(buyer);
-            UntrustworthyData<StateAndRef> tokenStateRefUn = buyerPartySession.sendAndReceive(
-                    StateAndRef.class,
-                    new TokenRequest(balancePayment, buyer)
-            );
-            // TODO we still got "missing parameter name at index 0 {}" error.
-            // If comment out the "unwrap" line, this error will disappear.
-            StateAndRef<TokenState> tokenStateRef = tokenStateRefUn.unwrap(data -> data);
-            //StateAndRef<TokenState> tokenStateRef = new StateAndRef<>(null, null);
+
+            TokenAsk tokenAsk = new TokenAsk(buyerPartySession);
+            StateAndRef<TokenState> tokenStateRef = tokenAsk.askTokenState(balancePayment, buyer);
             if (tokenStateRef == null) {
                 throw new FlowException("Cannot get any token state from buyer.");
             }
+
+            // TODO Because add send/recv in our flow, so PartyA will receive the same questions,
+            // I add those code just for working around here.
+            Party tokenIssuer = tokenStateRef.getState().getData().getIssuer();
+            FlowSession issuerPartySession = initiateFlow(tokenIssuer);
+            TokenAsk tokenAskFromIssuer = new TokenAsk(issuerPartySession);
+            tokenAskFromIssuer.askTokenState(balancePayment, buyer);
 
             progressTracker.setCurrentStep(GENERATING_TRANSACTION);
             TransactionBuilder transactionBuilder = new TransactionBuilder(notary);
@@ -151,6 +126,15 @@ public class OrderDeliveredFlow {
                         new TokenState(tokenState.getIssuer(), me, tokenState.getAmount() - balancePayment);
                 transactionBuilder.addOutputState(tokenState4Buyer, TokenContract.ID, notary);
             }
+            OrderState outputOrderState = new OrderState(
+                    inputOrderState.getData(),
+                    inputOrderState.getBuyer(),
+                    inputOrderState.getSeller(),
+                    inputOrderState.getLinearId(),
+                    inputOrderState.getSellingPrice(),
+                    inputOrderState.getDownPayments(),
+                    "delivered");
+            transactionBuilder.addOutputState(outputOrderState, OrderContract.CONTRACT_ID, notary);
 
             //command
             CommandData tokenCommandData = new TokenContract.Pay();
@@ -175,7 +159,7 @@ public class OrderDeliveredFlow {
 
             List<FlowSession> otherPartySession =
                     //Create FlowSession for Seller and Token Issuer
-                    ImmutableList.of(initiateFlow(buyer), initiateFlow(tokenState.getIssuer()));
+                    ImmutableList.of(buyerPartySession, issuerPartySession);
             final SignedTransaction fullySignedTx = subFlow(
                     new CollectSignaturesFlow(
                             partSignedTx,
@@ -220,12 +204,10 @@ public class OrderDeliveredFlow {
                     requireThat(require -> {
                         //final List<StateRef> inputStateList = stx.getTx().getInputs();
                         //TODO only has hash key and ID, how to check amount in TokenState?
-                        final List<TransactionState<ContractState>> outputTxStateList = stx.getTx().getOutputs();
-                        List<TransactionState<ContractState>> outputOrderStateList =
-                                outputTxStateList.stream()
-                                        .filter(state -> state.getData() instanceof OrderState)
-                                        .collect(Collectors.toList());
-                        require.using("Must have a output OrderState",outputOrderStateList.size() == 1);
+                        final List<OrderState> iOrderStateList = stx.getTx().outputsOfType(OrderState.class);
+                        require.using("Must have a output OrderState",iOrderStateList.size() == 1);
+                        require.using("The state of OrderState must be delivered.",
+                                iOrderStateList.get(0).getState().equals("delivered"));
                         //TODO add more check
                         return null;
                     });
@@ -233,21 +215,23 @@ public class OrderDeliveredFlow {
             }
 
             progressTracker.setCurrentStep(RECEIVING_AND_SENDING_DATA);
-            TokenRequest tokenReq = otherPartyFlow.receive(TokenRequest.class).unwrap(data -> data);
+            TokenAsk tokenAsk = new TokenAsk(otherPartyFlow);
+            Integer amount = tokenAsk.receiveAmount();
+            Party owner = tokenAsk.receiveOwner();
             //find a Token State for order
             QueryCriteria.VaultQueryCriteria criteria = new QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED);
             Vault.Page<TokenState> results = getServiceHub().getVaultService().queryBy(TokenState.class, criteria);
             List<StateAndRef<TokenState>> tokenStates = results.getStates();
             StateAndRef<TokenState> tokenStateRef = tokenStates.stream()
-                    .filter(state -> state.getState().getData().getAmount() >= tokenReq.amount
-                            && state.getState().getData().getOwner().equals(tokenReq.buyer))
+                    .filter(state -> state.getState().getData().getAmount() >= amount
+                            && state.getState().getData().getOwner().equals(owner))
                     .findAny()
                     .orElse(null);
             if (tokenStateRef == null) {
                 //TODO Do not consider TokenState unite for now.
                 throw new FlowException("The buyer has no enough amount.");
             }
-            otherPartyFlow.send(tokenStateRef);
+            tokenAsk.sendStateAndRef(tokenStateRef);
 
             progressTracker.setCurrentStep(SIGNING);
             subFlow(new SignTxFlow(otherPartyFlow, SignTransactionFlow.Companion.tracker()));

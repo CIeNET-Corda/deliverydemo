@@ -30,9 +30,9 @@ public class OrderContract implements Contract {
     public void verify(LedgerTransaction tx) throws IllegalArgumentException {
         requireThat(require -> {
 
-            require.using("Must have a timestamp", tx.getTimeWindow() != null);
-            final TimeWindow timewindow = tx.getTimeWindow();
-            require.using("Must be a valid timestamp", timewindow.contains(Instant.now()));
+//            require.using("Must have a timestamp", tx.getTimeWindow() != null);
+//            final TimeWindow timewindow = tx.getTimeWindow();
+//            require.using("Must be a valid timestamp", timewindow.contains(Instant.now()));
 
             List<Command<Commands.OrderPlacingCommand>> orderPlacingCommand =
                     tx.commandsOfType(Commands.OrderPlacingCommand.class);

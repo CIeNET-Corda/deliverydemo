@@ -94,7 +94,7 @@ public class FlowTests {
         assertEquals(1, signedTransaction.getTx().getCommands().size());
         Command command = signedTransaction.getTx().getCommands().get(0);
 
-        assertEquals(1, command.getSigners().size());
+        assertEquals(2, command.getSigners().size());
         assert(command.getSigners().contains(nodeA.getInfo().getLegalIdentities().get(0).getOwningKey()));
     }
 

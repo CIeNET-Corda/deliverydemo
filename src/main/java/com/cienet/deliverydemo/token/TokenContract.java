@@ -53,15 +53,12 @@ public class TokenContract implements Contract {
 
         payCommand.stream().forEach(commandWithData -> {
             //input
-            if (tx.getInputs().size() != 1) {
+            if (tx.inputsOfType(TokenState.class).size() != 1) {
                 //TODO Do not consider TokenState unite for now.
                 throw new IllegalArgumentException("must only 1 input.");
             }
 
-            ContractState inputState = tx.getInput(0);
-            if (!(inputState instanceof TokenState)) {
-                throw new IllegalArgumentException("InputState must TokenState.");
-            }
+            ContractState inputState = tx.inputsOfType(TokenState.class).get(0);
             TokenState inputTokenState = (TokenState) inputState;
 
             //output

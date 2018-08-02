@@ -15,18 +15,21 @@ public class OrderState implements LinearState, Comparable<OrderState> {
     private final UniqueIdentifier linearId;
     private final float sellingPrice;
     private final float downPayments;
+    private final String state;
 
     public OrderState(
             String data,
             Party buyer, Party seller,
             UniqueIdentifier linearId,
-            float sellingPrice, float downPayments) {
+            float sellingPrice, float downPayments,
+            String state) {
         this.data = data;
         this.buyer = buyer;
         this.seller = seller;
         this.linearId = linearId;
         this.sellingPrice = sellingPrice;
         this.downPayments = downPayments;
+        this.state = state;
     }
 
     public String getData() {
@@ -48,6 +51,8 @@ public class OrderState implements LinearState, Comparable<OrderState> {
     public float getDownPayments() {
         return downPayments;
     }
+
+    public String getState() { return state; }
 
     @Override
     public UniqueIdentifier getLinearId() {

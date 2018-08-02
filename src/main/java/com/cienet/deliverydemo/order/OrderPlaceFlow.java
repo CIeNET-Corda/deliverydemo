@@ -101,7 +101,8 @@ public class OrderPlaceFlow {
                     "This is an demo order.",
                     me, seller,
                     new UniqueIdentifier(this.orderID, UUID.randomUUID()),
-                    sellingPrice, downPayments);
+                    sellingPrice, downPayments,
+                    "shipping");
 
             transactionBuilder.addOutputState(orderState, TokenContract.ID, notary);
 
