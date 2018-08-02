@@ -123,7 +123,7 @@ public class OrderDeliveredFlow {
             if (tokenState.getAmount() > balancePayment) {
                 //Add for a change
                 TokenState tokenState4Buyer =
-                        new TokenState(tokenState.getIssuer(), me, tokenState.getAmount() - balancePayment);
+                        new TokenState(tokenState.getIssuer(), buyer, tokenState.getAmount() - balancePayment);
                 transactionBuilder.addOutputState(tokenState4Buyer, TokenContract.ID, notary);
             }
             OrderState outputOrderState = new OrderState(
