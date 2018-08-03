@@ -1,14 +1,11 @@
 package com.cienet.deliverydemo.order;
 
 import com.cienet.deliverydemo.token.TokenContract;
-import com.cienet.deliverydemo.token.TokenIssueFlow;
 import com.cienet.deliverydemo.token.TokenState;
 import com.google.common.collect.ImmutableList;
 import net.corda.core.concurrent.CordaFuture;
 import net.corda.core.contracts.*;
 import net.corda.core.flows.FlowException;
-import net.corda.core.identity.CordaX500Name;
-import net.corda.core.identity.Party;
 import net.corda.core.node.services.Vault;
 import net.corda.core.node.services.vault.QueryCriteria;
 import net.corda.core.transactions.SignedTransaction;
@@ -21,10 +18,8 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 public class FlowTests {
     private MockNetwork network;
@@ -152,13 +147,14 @@ public class FlowTests {
                 nodeB.getInfo().getLegalIdentities().get(0),
                 nodeC.getInfo().getLegalIdentities().get(0),
                 new UniqueIdentifier("ut_order", UUID.randomUUID()),
-                10, 0.1f);
+                10, 0.1f,
+                "shipping");
         TransactionBuilder transactionBuilder4Order = new TransactionBuilder(network.getDefaultNotaryIdentity());
         transactionBuilder4Order.addInputState(inputTokenStateRef);
         transactionBuilder4Order.addOutputState(
                 outputTokenState, TokenContract.ID, network.getDefaultNotaryIdentity());
         transactionBuilder4Order.addOutputState(
-                outputTokenStateChange, TokenContract.ID, network.getDefaultNotaryIdentity());;
+                outputTokenStateChange, TokenContract.ID, network.getDefaultNotaryIdentity());
         transactionBuilder4Order.addOutputState(
                 outputOrderState, OrderContract.CONTRACT_ID, network.getDefaultNotaryIdentity());
 
@@ -180,9 +176,10 @@ public class FlowTests {
         nodeB.transaction(() -> {
             try {
                 transactionBuilder4Order.verify(nodeB.getServices());
-            } catch (TransactionVerificationException e) {
-            } catch (TransactionResolutionException e) {
-            } catch (AttachmentResolutionException e) {
+            } catch (TransactionVerificationException
+                    | TransactionResolutionException
+                    | AttachmentResolutionException e) {
+                e.printStackTrace();
             }
             return null;
         });
