@@ -8,7 +8,7 @@ import net.corda.core.identity.Party
 import net.corda.core.utilities.unwrap
 
 
-class TokenAsk(val otherPartyFlow: FlowSession) {
+class TokenAsk(private val otherPartyFlow: FlowSession) {
 
     @Suspendable
     fun askTokenState(amount: Int, owner: Party): StateAndRef<TokenState> {
@@ -27,5 +27,5 @@ class TokenAsk(val otherPartyFlow: FlowSession) {
 
     @Suspendable
     fun sendStateAndRef(tokenStateAndRef: StateAndRef<TokenState>) =
-        otherPartyFlow.send(tokenStateAndRef);
+        otherPartyFlow.send(tokenStateAndRef)
 }

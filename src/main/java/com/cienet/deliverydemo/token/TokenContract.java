@@ -1,17 +1,11 @@
 package com.cienet.deliverydemo.token;
 
-import com.cienet.deliverydemo.order.OrderContract;
 import net.corda.core.contracts.*;
 import net.corda.core.transactions.LedgerTransaction;
 
 import java.security.PublicKey;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static net.corda.core.contracts.ContractsDSL.requireThat;
-
-/* Our contract, governing how our state will evolve over time.
- * See src/main/kotlin/examples/ExampleContract.java for an example. */
 public class TokenContract implements Contract {
     public static String ID = "com.cienet.deliverydemo.token.TokenContract";
 
@@ -25,7 +19,7 @@ public class TokenContract implements Contract {
             throw new IllegalArgumentException("must only 1 command, Issue or Pay.");
         }
 
-        issueCommand.stream().forEach( commandWithData -> {
+        issueCommand.forEach( commandWithData -> {
             if (tx.getInputs().size() != 0) {
                 throw new IllegalArgumentException("must no input.");
             }
@@ -51,7 +45,7 @@ public class TokenContract implements Contract {
             }
         });
 
-        payCommand.stream().forEach(commandWithData -> {
+        payCommand.forEach(commandWithData -> {
             //input
             if (tx.inputsOfType(TokenState.class).size() != 1) {
                 //TODO Do not consider TokenState unite for now.
@@ -64,7 +58,7 @@ public class TokenContract implements Contract {
             //output
             List<TokenState> outputTokenStateList = tx.outputsOfType(TokenState.class);
             if (outputTokenStateList.size() == 1) {
-                TokenState outputTokenState = (TokenState) outputTokenStateList.get(0);
+                TokenState outputTokenState = outputTokenStateList.get(0);
                 if (outputTokenState.getAmount() <= 0) {
                     throw new IllegalArgumentException("amount of outputTokenState must positive.");
                 }
@@ -77,8 +71,8 @@ public class TokenContract implements Contract {
                     throw new IllegalArgumentException("Owner of In/out put TokenState must be not equal.");
                 }
             } else if (outputTokenStateList.size() == 2) {
-                TokenState outputState_0 = (TokenState) outputTokenStateList.get(0);
-                TokenState outputState_1 = (TokenState) outputTokenStateList.get(1);
+                TokenState outputState_0 = outputTokenStateList.get(0);
+                TokenState outputState_1 = outputTokenStateList.get(1);
 
                 if (inputTokenState.getAmount() != (outputState_0.getAmount() + outputState_1.getAmount())) {
                     throw new IllegalArgumentException("amount of In/out put TokenState must be equal.");
@@ -97,7 +91,7 @@ public class TokenContract implements Contract {
                 throw new IllegalArgumentException("must 1 or 2 Token output.");
             }
 
-            outputTokenStateList.stream().forEach(outputState -> {
+            outputTokenStateList.forEach(outputState -> {
                 List<PublicKey> requiredSigners = commandWithData.getSigners();
                 PublicKey issuerKey = outputState.getIssuer().getOwningKey();
                 if (!requiredSigners.contains(issuerKey)) {

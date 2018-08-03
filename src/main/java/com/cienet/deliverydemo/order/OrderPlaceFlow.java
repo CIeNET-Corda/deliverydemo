@@ -19,8 +19,7 @@ import java.util.stream.Collectors;
 
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
-/* Our flow, automating the process of updating the ledger.
- * See src/main/java/examples/IAmAFlowPair.java for an example. */
+
 public class OrderPlaceFlow {
     @InitiatingFlow
     @StartableByRPC

@@ -2,19 +2,16 @@ package com.cienet.deliverydemo.order;
 
 import com.cienet.deliverydemo.token.TokenState;
 import net.corda.core.contracts.*;
-import net.corda.core.crypto.SecureHash;
 import net.corda.core.transactions.LedgerTransaction;
 
 import java.security.PublicKey;
 import java.util.List;
-import java.time.Instant;
 
-import static net.corda.core.contracts.ContractsDSL.requireSingleCommand;
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
 public class OrderContract implements Contract {
     // Used to reference the contract in transactions.
-    public static final String CONTRACT_ID = "com.cienet.deliverydemo.order.OrderContract";
+    static final String CONTRACT_ID = "com.cienet.deliverydemo.order.OrderContract";
 
     public interface Commands extends CommandData {
 
@@ -43,7 +40,7 @@ public class OrderContract implements Contract {
             require.using("At least one Order command, OrderPlacingCommand or OrderDeliveredCommand",
                     orderPlacingCommand.size() + orderDeliveredCommand.size() == 1);
 
-            orderPlacingCommand.stream().forEach( commandWithData -> {
+            orderPlacingCommand.forEach( commandWithData -> {
                 //input
 
                 final List<TokenState> iTokenStateList = tx.inputsOfType(TokenState.class);
@@ -76,7 +73,7 @@ public class OrderContract implements Contract {
 
             });
 
-            orderDeliveredCommand.stream().forEach( commandWithData -> {
+            orderDeliveredCommand.forEach( commandWithData -> {
                 //TODO
             });
 

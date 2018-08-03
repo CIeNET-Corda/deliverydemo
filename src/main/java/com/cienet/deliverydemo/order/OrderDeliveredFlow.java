@@ -7,17 +7,13 @@ import com.google.common.collect.ImmutableList;
 import net.corda.core.contracts.*;
 import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
-import net.corda.core.internal.FetchDataFlow;
 import net.corda.core.node.services.Vault;
 import net.corda.core.node.services.vault.QueryCriteria;
-import net.corda.core.serialization.CordaSerializable;
 import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static net.corda.core.contracts.ContractsDSL.requireThat;
 
@@ -77,7 +73,8 @@ public class OrderDeliveredFlow {
             Vault.Page<OrderState> results = getServiceHub().getVaultService().queryBy(OrderState.class, criteria);
             List<StateAndRef<OrderState>> orderStates = results.getStates();
             StateAndRef<OrderState> orderStateRef = orderStates.stream()
-                    .filter(state -> state.getState().getData().getLinearId().getExternalId().equals(orderID)
+                    .filter(state -> state.getState().getData().getLinearId().getExternalId() != null
+                            && state.getState().getData().getLinearId().getExternalId().equals(orderID)
                             && state.getState().getData().getSeller().equals(me))
                     .findAny()
                     .orElse(null);
@@ -99,9 +96,6 @@ public class OrderDeliveredFlow {
 
             TokenAsk tokenAsk = new TokenAsk(buyerPartySession);
             StateAndRef<TokenState> tokenStateRef = tokenAsk.askTokenState(balancePayment, buyer);
-            if (tokenStateRef == null) {
-                throw new FlowException("Cannot get any token state from buyer.");
-            }
 
             // TODO Because add send/recv in our flow, so PartyA will receive the same questions,
             // I add those code just for working around here.

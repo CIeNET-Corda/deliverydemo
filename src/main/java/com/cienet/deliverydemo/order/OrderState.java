@@ -5,6 +5,7 @@ import net.corda.core.contracts.LinearState;
 import net.corda.core.contracts.UniqueIdentifier;
 import net.corda.core.identity.AbstractParty;
 import net.corda.core.identity.Party;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
@@ -32,42 +33,44 @@ public class OrderState implements LinearState, Comparable<OrderState> {
         this.state = state;
     }
 
-    public String getData() {
+    String getData() {
         return data;
     }
 
-    public Party getBuyer() {
+    Party getBuyer() {
         return buyer;
     }
 
-    public Party getSeller() {
+    Party getSeller() {
         return seller;
     }
 
-    public float getSellingPrice() {
+    float getSellingPrice() {
         return sellingPrice;
     }
 
-    public float getDownPayments() {
+    float getDownPayments() {
         return downPayments;
     }
 
-    public String getState() { return state; }
+    String getState() { return state; }
 
     @Override
+    @NotNull
     public UniqueIdentifier getLinearId() {
         return linearId;
     }
 
     // Overrides participants, the only field defined by ContractState.
     @Override
+    @NotNull
     public List<AbstractParty> getParticipants() {
         return ImmutableList.of(buyer, seller);
     }
 
     // Can implement additional functions as well.
     @Override
-    public int compareTo(OrderState other) {
+    public int compareTo(@NotNull OrderState other) {
         return linearId.compareTo(other.linearId);
     }
 }

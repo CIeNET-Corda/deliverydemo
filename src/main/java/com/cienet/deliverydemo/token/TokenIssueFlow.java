@@ -1,24 +1,16 @@
 package com.cienet.deliverydemo.token;
 
 import co.paralleluniverse.fibers.Suspendable;
-import com.cienet.deliverydemo.order.OrderPlaceFlow;
-import com.cienet.deliverydemo.order.OrderState;
+
 import com.google.common.collect.ImmutableList;
-import net.corda.core.contracts.Command;
 import net.corda.core.contracts.CommandData;
-import net.corda.core.contracts.ContractState;
-import net.corda.core.contracts.TransactionState;
 import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
 import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
 
-import java.security.PublicKey;
 import java.util.List;
-import java.util.stream.Collectors;
-
-import static net.corda.core.contracts.ContractsDSL.requireThat;
 
 public class TokenIssueFlow {
     /* Our flow, automating the process of updating the ledger.
