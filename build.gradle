@@ -138,6 +138,18 @@ task deployNodesJava(type: net.corda.plugins.Cordform, dependsOn: ['jar']) {
         ]
         rpcUsers = [[user: "user1", password: "test", permissions: ["ALL"]]]
     }
+    node {
+        name "O=Oracle,L=Lagos,C=NG"
+        p2pPort 10012
+        rpcSettings {
+            address("localhost:10013")
+            adminAddress("localhost:10014")
+        }
+        cordapps = [
+                "$project.group:cordapp:$project.version"
+        ]
+        rpcUsers = [[user: "user1", password: "test", permissions: ["ALL"]]]
+    }
 }
 
 task gatherDependencies(type: Copy) {

@@ -2,15 +2,22 @@ package com.cienet.deliverydemo.token;
 
 import co.paralleluniverse.fibers.Suspendable;
 
+import com.cienet.deliverydemo.oracle.Oracle;
+import com.cienet.deliverydemo.oracle.OracleFlow;
 import com.google.common.collect.ImmutableList;
+import net.corda.core.contracts.Command;
 import net.corda.core.contracts.CommandData;
+import net.corda.core.crypto.TransactionSignature;
 import net.corda.core.flows.*;
 import net.corda.core.identity.Party;
+import net.corda.core.transactions.FilteredTransaction;
 import net.corda.core.transactions.SignedTransaction;
 import net.corda.core.transactions.TransactionBuilder;
 import net.corda.core.utilities.ProgressTracker;
 
 import java.util.List;
+
+import static com.sun.jmx.mbeanserver.Util.cast;
 
 public class TokenIssueFlow {
     /* Our flow, automating the process of updating the ledger.
@@ -45,7 +52,7 @@ public class TokenIssueFlow {
                 FINALISING_TRANSACTION
         );
 
-        public Request(Party owner, int amount) {
+        Request(Party owner, int amount) {
             this.owner = owner;
             this.amount = amount;
         }
@@ -76,15 +83,39 @@ public class TokenIssueFlow {
             //        transactionBuilder.addCommand(command);
             transactionBuilder.addCommand(commandData, issuer.getOwningKey(), owner.getOwningKey());
 
+            FlowSession ownerFlowSession = initiateFlow(owner);
+
+            //Oracle testing
+            Party oracle = getServiceHub().getIdentityService().partiesFromName("Oracle", true)
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new FlowException("No Oracle found."));
+            int result = subFlow(new OracleFlow.QueryFlow(99, oracle));
+            Oracle.PuzzleOracle.IntVal oracleCmdData = new Oracle.PuzzleOracle.IntVal(99, result);
+            transactionBuilder.addCommand(oracleCmdData, oracle.getOwningKey());
+            //Oracle testing end
+
             progressTracker.setCurrentStep(VERIFYING_TRANSACTION);
             transactionBuilder.verify(getServiceHub());
 
             progressTracker.setCurrentStep(SIGNING_TRANSACTION);
             SignedTransaction partSignedTx = getServiceHub().signInitialTransaction(transactionBuilder);
 
+            //Oracle testing
+            //transactionBuilder.toWireTransaction(getServiceHub()).buildFilteredTransaction
+            Command<Oracle.PuzzleOracle.IntVal> oracleCmd = cast (transactionBuilder.commands()
+                    .stream()
+                    .filter(it -> it.getValue() instanceof Oracle.PuzzleOracle.IntVal)
+                    .findAny()
+                    .orElseThrow(() -> new FlowException("Oracle Command in tx not found.")));
+            FilteredTransaction ft = partSignedTx.buildFilteredTransaction( it -> it.getClass().equals(oracleCmd.getClass()) && it.equals(oracleCmd));
+            TransactionSignature oracleTxs = subFlow(new OracleFlow.SignFlow(transactionBuilder, oracle, ft));
+            partSignedTx = partSignedTx.withAdditionalSignature(oracleTxs);
+            //Oracle testing end
+
             progressTracker.setCurrentStep(GATHERING_SIGS);
             List<FlowSession> otherPartySession =
-                    ImmutableList.of(initiateFlow(owner));
+                    ImmutableList.of(ownerFlowSession);
             final SignedTransaction fullySignedTx = subFlow(
                     new CollectSignaturesFlow(
                             partSignedTx,
